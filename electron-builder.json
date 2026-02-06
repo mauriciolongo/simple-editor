@@ -1,0 +1,20 @@
+{
+  "appId": "com.markdown-editor.app",
+  "productName": "Markdown Editor",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*"
+  ],
+  "linux": {
+    "target": ["AppImage", "deb"],
+    "category": "Office"
+  },
+  "win": {
+    "target": "nsis"
+  },
+  "mac": {
+    "target": "dmg"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "name": "markdown-editor",
+  "version": "1.0.0",
+  "description": "A minimal, distraction-free markdown editor for writers",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "npm run build:main && npm run build:preload && concurrently -k \"npm run dev:renderer\" \"npm run dev:main\" \"npm run dev:preload\" \"npm run dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:main": "tsc -p tsconfig.main.json -w",
+    "dev:preload": "tsc -p tsconfig.preload.json -w",
+    "dev:electron": "sleep 2 && NODE_ENV=development electron .",
+    "build": "npm run build:main && npm run build:preload && npm run build:renderer",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:preload": "tsc -p tsconfig.preload.json",
+    "build:renderer": "vite build",
+    "package": "npm run build && electron-builder",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "markdown",
+    "editor",
+    "electron"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@codemirror/commands": "^6.10.1",
+    "@codemirror/lang-markdown": "^6.5.0",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/view": "^6.39.12",
+    "electron": "^40.1.0",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.1.0"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^25.1.0",
+    "concurrently": "^9.2.1",
+    "electron-builder": "^26.4.0",
+    "typescript": "^5.9.3",
+    "vite": "^5.4.21"
+  }
+}

@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: local-file: data: https:">
+  <title>Markdown Editor</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="toolbar"></div>
+  <div id="app-container">
+    <div id="editor-container"></div>
+    <div id="preview-container"></div>
+  </div>
+  <div id="status-bar">
+    <span id="word-count">Words: 0</span>
+  </div>
+  <script type="module" src="./index.ts"></script>
+</body>
+</html>
