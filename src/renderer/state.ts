@@ -1,15 +1,17 @@
+export type EditorMode = 'wysiwyg' | 'source'
+
 export interface DocumentState {
   filePath: string | null
   isModified: boolean
   originalContent: string
-  isPreviewVisible: boolean
+  editorMode: EditorMode
 }
 
 let state: DocumentState = {
   filePath: null,
   isModified: false,
   originalContent: '',
-  isPreviewVisible: true,
+  editorMode: 'wysiwyg',
 }
 
 type StateChangeCallback = (state: DocumentState) => void
@@ -39,21 +41,20 @@ export function resetState(): void {
     filePath: null,
     isModified: false,
     originalContent: '',
-    isPreviewVisible: state.isPreviewVisible,
+    editorMode: state.editorMode,
   }
   notifyListeners()
 }
 
-export function setPreviewVisible(visible: boolean): void {
-  state = { ...state, isPreviewVisible: visible }
-  notifyListeners()
+export function getEditorMode(): EditorMode {
+  return state.editorMode
 }
 
-export function togglePreview(): boolean {
-  const newVisible = !state.isPreviewVisible
-  state = { ...state, isPreviewVisible: newVisible }
+export function toggleEditorMode(): EditorMode {
+  const newMode = state.editorMode === 'wysiwyg' ? 'source' : 'wysiwyg'
+  state = { ...state, editorMode: newMode }
   notifyListeners()
-  return newVisible
+  return newMode
 }
 
 export function onStateChange(callback: StateChangeCallback): void {

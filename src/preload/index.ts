@@ -16,6 +16,7 @@ export interface ElectronAPI {
   getDocumentBasePath: (documentPath: string) => Promise<string>
   promptSaveFirst: () => Promise<'save' | 'cancel'>
   listImagesInFolder: (documentPath: string) => Promise<string[]>
+  confirmClose: () => void
 }
 
 const electronAPI: ElectronAPI = {
@@ -41,6 +42,7 @@ const electronAPI: ElectronAPI = {
   promptSaveFirst: () => ipcRenderer.invoke('dialog:promptSave'),
   listImagesInFolder: (documentPath: string) =>
     ipcRenderer.invoke('image:listInFolder', documentPath),
+  confirmClose: () => ipcRenderer.send('window:confirmClose'),
 }
 
 contextBridge.exposeInMainWorld('electronAPI', electronAPI)

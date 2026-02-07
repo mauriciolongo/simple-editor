@@ -2,7 +2,7 @@
 
 ## Overview
 
-A minimal, distraction-free markdown editor for writers. Desktop application built with Electron and TypeScript. The focus is on clean writing experience, not code editing.
+A plain, fully-functional markdown editor. Desktop application built with Electron and TypeScript. Focused entirely on editing markdown documents — nothing more, nothing less.
 
 ---
 
@@ -243,13 +243,8 @@ Files to persist:
 
 ---
 
-## Out of Scope (Future Versions)
+## Out of Scope
 
-**Low priority (may add to v1 if time permits):**
-- Drag and drop files onto window to open
-- Footnotes (`[^1]` reference style)
-
-**Deferred to later versions:**
 - Tabs / multi-file editing
 - Custom themes / dark mode
 - Syntax highlighting in editor (plain text appearance intentional)
@@ -260,38 +255,7 @@ Files to persist:
 - Custom fonts
 - Plugin system
 - Cloud sync
-
----
-
-## Future Vision
-
-This editor is the foundation for a **project-based writing tool** aimed at authors working on books, articles, and long-form content.
-
-**Planned capabilities (v2+):**
-- **Project mode**: Folder-based projects containing multiple markdown files
-- **Book structure**: Chapters, scenes, and sections as separate files with defined order
-- **Project sidebar**: Navigate between files in a project
-- **Cross-file linking**: Wiki-style links between documents (`[[chapter-2]]`)
-- **Global word count**: Aggregate statistics across all project files
-- **Issue/task tracking**: Local `issues.md` with `#123` style references
-- **Compile/export**: Merge chapters into single document for export
-- **Project packaging**: Export entire project as `.mdproj.zip` for backup/sharing
-
-**Project package format (****`.mdproj.zip`****):**
-```
-my-book.mdproj.zip
-├── book.json           # Project manifest (title, author, chapter order)
-├── chapter-01.md
-├── chapter-02.md
-├── images/
-│   ├── cover.png
-│   └── diagram.svg
-└── issues.md           # Optional task tracking
-```
-
-Double-clicking a `.mdproj.zip` file could open/import the project into the editor.
-
-The current architecture (local image handling with `./images/`, relative paths) is designed with this future in mind.
+- Project management features
 
 ---
 
@@ -302,4 +266,4 @@ The current architecture (local image handling with `./images/`, relative paths)
 3. Word count updates correctly in real-time
 4. Recent files persist and work across sessions
 5. All keyboard shortcuts function as specified
-6. App runs on Windows, macOS, and Linux
+6. App runs on Linux (with cross-platform builds for Windows and macOS)

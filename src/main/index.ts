@@ -14,6 +14,7 @@ import {
 } from './image-ops'
 
 let mainWindow: BrowserWindow | null = null
+let forceClose = false
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -36,6 +37,13 @@ function createWindow(): void {
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
+
+  mainWindow.on('close', (e) => {
+    if (!forceClose) {
+      e.preventDefault()
+      mainWindow?.webContents.send('menu:action', 'close')
+    }
+  })
 
   mainWindow.on('closed', () => {
     mainWindow = null
@@ -126,6 +134,11 @@ function setupIpcHandlers(): void {
 
   ipcMain.handle('image:listInFolder', async (_event, documentPath: string) => {
     return listImagesInFolder(documentPath)
+  })
+
+  ipcMain.on('window:confirmClose', () => {
+    forceClose = true
+    mainWindow?.close()
   })
 }
 

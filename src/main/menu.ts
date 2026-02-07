@@ -86,7 +86,11 @@ export function createMenu(window: BrowserWindow): void {
         { label: 'Paste', accelerator: 'CmdOrCtrl+V', role: 'paste' },
         { type: 'separator' },
         { label: 'Select All', accelerator: 'CmdOrCtrl+A', role: 'selectAll' },
-        { type: 'separator' },
+      ],
+    },
+    {
+      label: 'Format',
+      submenu: [
         {
           label: 'Bold',
           accelerator: 'CmdOrCtrl+B',
@@ -97,13 +101,69 @@ export function createMenu(window: BrowserWindow): void {
           accelerator: 'CmdOrCtrl+I',
           click: () => sendMenuAction(window, 'italic'),
         },
+        {
+          label: 'Strikethrough',
+          accelerator: 'CmdOrCtrl+Shift+X',
+          click: () => sendMenuAction(window, 'strikethrough'),
+        },
+        {
+          label: 'Inline Code',
+          accelerator: 'CmdOrCtrl+`',
+          click: () => sendMenuAction(window, 'inlineCode'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Heading 1',
+          accelerator: 'CmdOrCtrl+1',
+          click: () => sendMenuAction(window, 'h1'),
+        },
+        {
+          label: 'Heading 2',
+          accelerator: 'CmdOrCtrl+2',
+          click: () => sendMenuAction(window, 'h2'),
+        },
+        {
+          label: 'Heading 3',
+          accelerator: 'CmdOrCtrl+3',
+          click: () => sendMenuAction(window, 'h3'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Bullet List',
+          accelerator: 'CmdOrCtrl+Shift+8',
+          click: () => sendMenuAction(window, 'bulletList'),
+        },
+        {
+          label: 'Numbered List',
+          accelerator: 'CmdOrCtrl+Shift+9',
+          click: () => sendMenuAction(window, 'orderedList'),
+        },
+        {
+          label: 'Task List',
+          click: () => sendMenuAction(window, 'taskList'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Blockquote',
+          accelerator: 'CmdOrCtrl+Shift+.',
+          click: () => sendMenuAction(window, 'blockquote'),
+        },
+        {
+          label: 'Code Block',
+          accelerator: 'CmdOrCtrl+Shift+`',
+          click: () => sendMenuAction(window, 'codeBlock'),
+        },
+        {
+          label: 'Horizontal Rule',
+          click: () => sendMenuAction(window, 'horizontalRule'),
+        },
       ],
     },
     {
       label: 'View',
       submenu: [
         {
-          label: 'Toggle Preview',
+          label: 'Toggle Source View',
           accelerator: 'CmdOrCtrl+E',
           click: () => sendMenuAction(window, 'togglePreview'),
         },

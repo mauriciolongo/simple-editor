@@ -1,23 +1,25 @@
 import './styles.css'
-import { createEditor, EditorInstance } from './editor'
-import { createPreview, PreviewInstance } from './preview'
+import { createMilkdownEditor, MilkdownEditorInstance } from './milkdown-editor'
+import { setImageBasePath, setupImageRewriting } from './milkdown-image-plugin'
+import { createSourceEditor, SourceEditorInstance } from './source-editor'
 import { countWords, formatWordCount } from './word-count'
 import {
   getState,
+  getEditorMode,
+  toggleEditorMode,
   setModified,
   setFilePath,
   setOriginalContent,
   resetState,
   onStateChange,
-  togglePreview,
 } from './state'
 import { showImageInsertModal } from './image-modal'
 import { createToolbar, ToolbarAction } from './toolbar'
 
-let editor: EditorInstance | null = null
-let preview: PreviewInstance | null = null
-let editorContainer: HTMLElement | null = null
-let previewContainer: HTMLElement | null = null
+let milkdownEditor: MilkdownEditorInstance | null = null
+let sourceEditor: SourceEditorInstance | null = null
+let milkdownContainer: HTMLElement | null = null
+let sourceContainer: HTMLElement | null = null
 let wordCountElement: HTMLElement | null = null
 let toolbarContainer: HTMLElement | null = null
 
@@ -38,11 +40,6 @@ function handleContentChange(content: string): void {
     setModified(isModified)
   }
 
-  // Update preview
-  if (preview && state.isPreviewVisible) {
-    preview.render(content)
-  }
-
   // Update word count
   updateWordCount(content)
 }
@@ -54,44 +51,55 @@ function updateWordCount(content: string): void {
   }
 }
 
-function updatePreviewVisibility(): void {
-  const state = getState()
-  if (!preview || !editorContainer || !previewContainer) return
+function getCurrentContent(): string {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg' && milkdownEditor) {
+    return milkdownEditor.getContent()
+  } else if (mode === 'source' && sourceEditor) {
+    return sourceEditor.getContent()
+  }
+  return ''
+}
 
-  if (state.isPreviewVisible) {
-    preview.show()
-    editorContainer.classList.remove('full-width')
-    // Re-render preview with current content
-    if (editor) {
-      preview.render(editor.getContent())
+function handleToggleEditorMode(): void {
+  const content = getCurrentContent()
+
+  // Get approximate cursor position from current editor
+  let cursorFraction = 0
+  const currentMode = getEditorMode()
+  if (currentMode === 'wysiwyg' && milkdownEditor) {
+    cursorFraction = milkdownEditor.getCursorFraction()
+  } else if (currentMode === 'source' && sourceEditor) {
+    cursorFraction = sourceEditor.getCursorFraction()
+  }
+
+  const newMode = toggleEditorMode()
+
+  if (newMode === 'source') {
+    // Switching to source: transfer content from Milkdown to CodeMirror
+    if (sourceEditor) {
+      sourceEditor.setContent(content)
+      sourceEditor.setCursorFraction(cursorFraction)
     }
+    if (milkdownContainer) milkdownContainer.style.display = 'none'
+    if (sourceContainer) sourceContainer.style.display = 'block'
+    sourceEditor?.focus()
   } else {
-    preview.hide()
-    editorContainer.classList.add('full-width')
+    // Switching to WYSIWYG: transfer content from CodeMirror to Milkdown
+    if (milkdownEditor) {
+      milkdownEditor.setContent(content)
+      milkdownEditor.setCursorFraction(cursorFraction)
+    }
+    if (sourceContainer) sourceContainer.style.display = 'none'
+    if (milkdownContainer) milkdownContainer.style.display = 'block'
+    milkdownEditor?.focus()
   }
 }
 
-function setupScrollSync(): void {
-  if (!editor || !preview) return
-
-  const editorView = editor.view
-  const scroller = editorView.scrollDOM
-
-  scroller.addEventListener('scroll', () => {
-    if (!preview?.isVisible()) return
-
-    const scrollTop = scroller.scrollTop
-    const scrollHeight = scroller.scrollHeight - scroller.clientHeight
-    const percent = scrollHeight > 0 ? scrollTop / scrollHeight : 0
-
-    preview.scrollToPercent(percent)
-  })
-}
-
-function init(): void {
+async function init(): Promise<void> {
   toolbarContainer = document.getElementById('toolbar')
-  editorContainer = document.getElementById('editor-container')
-  previewContainer = document.getElementById('preview-container')
+  milkdownContainer = document.getElementById('milkdown-container')
+  sourceContainer = document.getElementById('source-container')
   wordCountElement = document.getElementById('word-count')
 
   if (!toolbarContainer) {
@@ -99,28 +107,30 @@ function init(): void {
     return
   }
 
-  if (!editorContainer) {
-    console.error('Editor container not found')
+  if (!milkdownContainer) {
+    console.error('Milkdown container not found')
     return
   }
 
-  if (!previewContainer) {
-    console.error('Preview container not found')
+  if (!sourceContainer) {
+    console.error('Source container not found')
     return
   }
 
   // Create toolbar
   createToolbar(toolbarContainer, handleToolbarAction)
 
-  editor = createEditor(editorContainer, handleContentChange)
-  preview = createPreview(previewContainer)
-  editor.focus()
+  // Create both editors
+  milkdownEditor = await createMilkdownEditor(milkdownContainer, handleContentChange)
+  sourceEditor = createSourceEditor(sourceContainer, handleContentChange)
+
+  // Setup image src rewriting for local files
+  setupImageRewriting(milkdownContainer)
+
+  milkdownEditor.focus()
 
   // Initial word count
   updateWordCount('')
-
-  // Setup scroll sync
-  setupScrollSync()
 
   // Setup drag-and-drop and clipboard paste for images
   setupDragAndDrop()
@@ -128,9 +138,6 @@ function init(): void {
 
   // Update window title when state changes
   onStateChange(updateWindowTitle)
-
-  // Update preview visibility when state changes
-  onStateChange(updatePreviewVisibility)
 
   // Initial title
   updateWindowTitle()
@@ -156,19 +163,52 @@ function init(): void {
         await handleSaveAs()
         break
       case 'togglePreview':
-        handleTogglePreview()
+        handleToggleEditorMode()
         break
       case 'undo':
-        editor?.undo()
+        handleUndo()
         break
       case 'redo':
-        editor?.redo()
+        handleRedo()
         break
       case 'bold':
-        editor?.wrapSelection('**', '**')
+        handleBold()
         break
       case 'italic':
-        editor?.wrapSelection('*', '*')
+        handleItalic()
+        break
+      case 'strikethrough':
+        handleStrikethrough()
+        break
+      case 'inlineCode':
+        handleInlineCode()
+        break
+      case 'h1':
+        handleHeading(1)
+        break
+      case 'h2':
+        handleHeading(2)
+        break
+      case 'h3':
+        handleHeading(3)
+        break
+      case 'bulletList':
+        handleBulletList()
+        break
+      case 'orderedList':
+        handleOrderedList()
+        break
+      case 'taskList':
+        handleTaskList()
+        break
+      case 'blockquote':
+        handleBlockquote()
+        break
+      case 'codeBlock':
+        handleCodeBlock()
+        break
+      case 'horizontalRule':
+        handleHorizontalRule()
         break
       case 'insertImage':
         await handleInsertImage()
@@ -176,12 +216,129 @@ function init(): void {
       case 'insertLink':
         handleInsertLink()
         break
+      case 'close':
+        await handleClose()
+        break
     }
   })
 }
 
-function handleTogglePreview(): void {
-  togglePreview()
+function handleUndo(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.undo()
+  } else {
+    sourceEditor?.undo()
+  }
+}
+
+function handleRedo(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.redo()
+  } else {
+    sourceEditor?.redo()
+  }
+}
+
+function handleBold(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyBold()
+  } else {
+    sourceEditor?.wrapSelection('**', '**')
+  }
+}
+
+function handleItalic(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyItalic()
+  } else {
+    sourceEditor?.wrapSelection('*', '*')
+  }
+}
+
+function handleHeading(level: number): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyHeading(level)
+  } else {
+    sourceEditor?.insertHeadingPrefix(level)
+  }
+}
+
+function handleStrikethrough(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyStrikethrough()
+  } else {
+    sourceEditor?.wrapSelection('~~', '~~')
+  }
+}
+
+function handleInlineCode(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyInlineCode()
+  } else {
+    sourceEditor?.wrapSelection('`', '`')
+  }
+}
+
+function handleBulletList(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyBulletList()
+  } else {
+    sourceEditor?.toggleListPrefix('- ')
+  }
+}
+
+function handleOrderedList(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyOrderedList()
+  } else {
+    sourceEditor?.toggleListPrefix('1. ')
+  }
+}
+
+function handleTaskList(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    // No direct Milkdown command; insert as text via source approach
+    milkdownEditor?.insertAtCursor('- [ ] ')
+  } else {
+    sourceEditor?.toggleListPrefix('- [ ] ')
+  }
+}
+
+function handleBlockquote(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyBlockquote()
+  } else {
+    sourceEditor?.wrapLine('> ')
+  }
+}
+
+function handleCodeBlock(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.applyCodeBlock()
+  } else {
+    sourceEditor?.insertAtCursor('\n```\n\n```\n')
+  }
+}
+
+function handleHorizontalRule(): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.insertHr()
+  } else {
+    sourceEditor?.insertLine('---')
+  }
 }
 
 async function handleToolbarAction(action: ToolbarAction): Promise<void> {
@@ -196,19 +353,40 @@ async function handleToolbarAction(action: ToolbarAction): Promise<void> {
       await handleSave()
       break
     case 'bold':
-      editor?.wrapSelection('**', '**')
+      handleBold()
       break
     case 'italic':
-      editor?.wrapSelection('*', '*')
+      handleItalic()
       break
     case 'h1':
-      insertHeading(1)
+      handleHeading(1)
       break
     case 'h2':
-      insertHeading(2)
+      handleHeading(2)
       break
     case 'h3':
-      insertHeading(3)
+      handleHeading(3)
+      break
+    case 'strikethrough':
+      handleStrikethrough()
+      break
+    case 'inlineCode':
+      handleInlineCode()
+      break
+    case 'bulletList':
+      handleBulletList()
+      break
+    case 'orderedList':
+      handleOrderedList()
+      break
+    case 'taskList':
+      handleTaskList()
+      break
+    case 'blockquote':
+      handleBlockquote()
+      break
+    case 'horizontalRule':
+      handleHorizontalRule()
       break
     case 'insertImage':
       await handleInsertImage()
@@ -219,66 +397,35 @@ async function handleToolbarAction(action: ToolbarAction): Promise<void> {
   }
 }
 
-function insertHeading(level: number): void {
-  if (!editor) return
-  const prefix = '#'.repeat(level) + ' '
-  const view = editor.view
-  const { from } = view.state.selection.main
-
-  // Find the start of the current line
-  const line = view.state.doc.lineAt(from)
-  const lineStart = line.from
-  const lineText = line.text
-
-  // Check if line already starts with a heading
-  const headingMatch = lineText.match(/^(#{1,6})\s*/)
-
-  if (headingMatch) {
-    // Replace existing heading
-    view.dispatch({
-      changes: { from: lineStart, to: lineStart + headingMatch[0].length, insert: prefix },
-    })
-  } else {
-    // Insert heading at line start
-    view.dispatch({
-      changes: { from: lineStart, to: lineStart, insert: prefix },
-    })
-  }
-  editor.focus()
-}
-
 function handleInsertLink(): void {
-  if (!editor) return
-  const view = editor.view
-  const { from, to } = view.state.selection.main
-  const selectedText = view.state.sliceDoc(from, to)
-
-  if (selectedText) {
-    // Wrap selection as link
-    const markdown = `[${selectedText}](url)`
-    view.dispatch({
-      changes: { from, to, insert: markdown },
-      // Position cursor at "url" for easy replacement
-      selection: { anchor: from + selectedText.length + 3, head: from + selectedText.length + 6 },
-    })
-  } else {
-    // Insert empty link template
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg') {
+    milkdownEditor?.insertLink('url', '')
+  } else if (sourceEditor) {
+    // In source mode, insert link markdown
     const markdown = '[link text](url)'
-    view.dispatch({
-      changes: { from, to: from, insert: markdown },
-      selection: { anchor: from + 1, head: from + 10 },
-    })
+    sourceEditor.insertAtCursor(markdown)
   }
-  editor.focus()
 }
 
-function updatePreviewBasePath(): void {
+function insertImageIntoEditor(src: string, alt: string): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg' && milkdownEditor) {
+    milkdownEditor.insertImage(src, alt)
+    milkdownEditor.focus()
+  } else if (sourceEditor) {
+    sourceEditor.insertAtCursor(`![${alt}](${src})`)
+    sourceEditor.focus()
+  }
+}
+
+function updateImageBasePath(): void {
   const state = getState()
-  if (preview && state.filePath) {
+  if (state.filePath) {
     const basePath = state.filePath.substring(0, state.filePath.lastIndexOf('/'))
-    preview.setBasePath(basePath)
-  } else if (preview) {
-    preview.setBasePath(null)
+    setImageBasePath(basePath)
+  } else {
+    setImageBasePath(null)
   }
 }
 
@@ -307,33 +454,20 @@ async function handleInsertImage(): Promise<void> {
   }
 
   if (result.type === 'url') {
-    // Insert URL directly
     const url = result.value
     const filename = url.split('/').pop()?.split('?')[0] || 'image'
-    const markdown = `![${filename}](${url})`
-
-    if (editor) {
-      editor.insertAtCursor(markdown)
-      editor.focus()
-    }
+    insertImageIntoEditor(url, filename)
     return
   }
 
   if (result.type === 'existing') {
-    // Insert existing image path
     const relativePath = result.value
     const filename = relativePath.split('/').pop() || 'image'
-    const markdown = `![${filename}](${relativePath})`
-
-    if (editor) {
-      editor.insertAtCursor(markdown)
-      editor.focus()
-    }
+    insertImageIntoEditor(relativePath, filename)
     return
   }
 
   // result.type === 'file' - Browse for file
-  // Need to ensure document is saved first
   if (!currentFilePath) {
     const promptResult = await window.electronAPI.promptSaveFirst()
     if (promptResult === 'cancel') {
@@ -350,32 +484,23 @@ async function handleInsertImage(): Promise<void> {
     return
   }
 
-  // Open image picker
   const imagePath = await window.electronAPI.selectImage()
   if (!imagePath) {
     return
   }
 
-  // Copy image to folder and get relative path
   const relativePath = await window.electronAPI.copyImageToFolder(imagePath, currentFilePath)
   if (!relativePath) {
     return
   }
 
-  // Insert markdown at cursor
   const filename = imagePath.split('/').pop() || 'image'
-  const markdown = `![${filename}](${relativePath})`
-
-  if (editor) {
-    editor.insertAtCursor(markdown)
-    editor.focus()
-  }
+  insertImageIntoEditor(relativePath, filename)
 }
 
 async function handleImageDrop(files: FileList): Promise<void> {
   const state = getState()
 
-  // Check if document is saved
   if (!state.filePath) {
     const result = await window.electronAPI.promptSaveFirst()
     if (result === 'cancel') {
@@ -397,22 +522,15 @@ async function handleImageDrop(files: FileList): Promise<void> {
       continue
     }
 
-    // For dropped files, we have the path available
     const filePath = (file as File & { path?: string }).path
     if (!filePath) {
       continue
     }
 
     const relativePath = await window.electronAPI.copyImageToFolder(filePath, currentFilePath)
-    if (relativePath && editor) {
-      const filename = file.name
-      const markdown = `![${filename}](${relativePath})\n`
-      editor.insertAtCursor(markdown)
+    if (relativePath) {
+      insertImageIntoEditor(relativePath, file.name)
     }
-  }
-
-  if (editor) {
-    editor.focus()
   }
 }
 
@@ -433,11 +551,10 @@ async function handleImagePaste(clipboardData: DataTransfer): Promise<boolean> {
 
   const state = getState()
 
-  // Check if document is saved
   if (!state.filePath) {
     const result = await window.electronAPI.promptSaveFirst()
     if (result === 'cancel') {
-      return true // Still consumed the paste
+      return true
     }
     const saved = await handleSaveAs()
     if (!saved) {
@@ -455,7 +572,6 @@ async function handleImagePaste(clipboardData: DataTransfer): Promise<boolean> {
     return true
   }
 
-  // Read file as base64
   const reader = new FileReader()
   reader.onload = async () => {
     const base64 = (reader.result as string).split(',')[1]
@@ -465,10 +581,8 @@ async function handleImagePaste(clipboardData: DataTransfer): Promise<boolean> {
       file.type
     )
 
-    if (relativePath && editor) {
-      const markdown = `![pasted image](${relativePath})`
-      editor.insertAtCursor(markdown)
-      editor.focus()
+    if (relativePath) {
+      insertImageIntoEditor(relativePath, 'pasted image')
     }
   }
   reader.readAsDataURL(file)
@@ -477,44 +591,56 @@ async function handleImagePaste(clipboardData: DataTransfer): Promise<boolean> {
 }
 
 function setupDragAndDrop(): void {
-  if (!editorContainer) return
+  // Set up on both containers
+  const containers = [milkdownContainer, sourceContainer].filter(Boolean) as HTMLElement[]
 
-  editorContainer.addEventListener('dragover', (e) => {
-    e.preventDefault()
-    e.stopPropagation()
-  })
+  for (const container of containers) {
+    container.addEventListener('dragover', (e) => {
+      e.preventDefault()
+      e.stopPropagation()
+    })
 
-  editorContainer.addEventListener('drop', async (e) => {
-    e.preventDefault()
-    e.stopPropagation()
+    container.addEventListener('drop', async (e) => {
+      e.preventDefault()
+      e.stopPropagation()
 
-    const files = e.dataTransfer?.files
-    if (files && files.length > 0) {
-      await handleImageDrop(files)
-    }
-  })
+      const files = e.dataTransfer?.files
+      if (files && files.length > 0) {
+        await handleImageDrop(files)
+      }
+    })
+  }
 }
 
 function setupClipboardPaste(): void {
-  if (!editorContainer) return
+  // Set up on both containers
+  const containers = [milkdownContainer, sourceContainer].filter(Boolean) as HTMLElement[]
 
-  editorContainer.addEventListener('paste', async (e) => {
-    const clipboardData = e.clipboardData
-    if (!clipboardData) return
+  for (const container of containers) {
+    container.addEventListener('paste', async (e) => {
+      const clipboardData = e.clipboardData
+      if (!clipboardData) return
 
-    // Check if there's an image in clipboard
-    const hasImage = Array.from(clipboardData.items).some(item => item.type.startsWith('image/'))
-    if (hasImage) {
-      e.preventDefault()
-      await handleImagePaste(clipboardData)
-    }
-  })
+      const hasImage = Array.from(clipboardData.items).some(item => item.type.startsWith('image/'))
+      if (hasImage) {
+        e.preventDefault()
+        await handleImagePaste(clipboardData)
+      }
+    })
+  }
+}
+
+async function handleClose(): Promise<void> {
+  const canClose = await checkUnsavedChanges()
+  if (canClose) {
+    window.electronAPI.confirmClose()
+  }
 }
 
 async function checkUnsavedChanges(): Promise<boolean> {
   const state = getState()
   if (!state.isModified) {
-    return true // No unsaved changes, proceed
+    return true
   }
 
   const result = await window.electronAPI.showUnsavedDialog()
@@ -522,9 +648,9 @@ async function checkUnsavedChanges(): Promise<boolean> {
     const saved = await handleSave()
     return saved
   } else if (result === 'discard') {
-    return true // Discard changes, proceed
+    return true
   }
-  return false // Cancel
+  return false
 }
 
 async function handleNew(): Promise<void> {
@@ -532,17 +658,13 @@ async function handleNew(): Promise<void> {
     return
   }
 
-  if (editor) {
-    editor.setContent('')
+  if (milkdownEditor) {
+    milkdownEditor.setContent('')
+  }
+  if (sourceEditor) {
+    sourceEditor.setContent('')
   }
   resetState()
-
-  // Render empty preview
-  if (preview && getState().isPreviewVisible) {
-    preview.render('')
-  }
-
-  // Reset word count
   updateWordCount('')
 }
 
@@ -552,19 +674,8 @@ async function handleOpen(): Promise<void> {
   }
 
   const result = await window.electronAPI.openFile()
-  if (result && editor) {
-    editor.setContent(result.content)
-    setFilePath(result.filePath)
-    setOriginalContent(result.content)
-
-    // Update preview base path and render
-    updatePreviewBasePath()
-    if (preview && getState().isPreviewVisible) {
-      preview.render(result.content)
-    }
-
-    // Update word count
-    updateWordCount(result.content)
+  if (result) {
+    loadContent(result.content, result.filePath)
   }
 }
 
@@ -574,27 +685,28 @@ async function handleOpenRecent(filePath: string): Promise<void> {
   }
 
   const result = await window.electronAPI.readFile(filePath)
-  if (result && editor) {
-    editor.setContent(result.content)
-    setFilePath(result.filePath)
-    setOriginalContent(result.content)
-
-    // Update preview base path and render
-    updatePreviewBasePath()
-    if (preview && getState().isPreviewVisible) {
-      preview.render(result.content)
-    }
-
-    // Update word count
-    updateWordCount(result.content)
+  if (result) {
+    loadContent(result.content, result.filePath)
   }
 }
 
-async function handleSave(): Promise<boolean> {
-  if (!editor) return false
+function loadContent(content: string, filePath: string): void {
+  const mode = getEditorMode()
+  if (mode === 'wysiwyg' && milkdownEditor) {
+    milkdownEditor.setContent(content)
+  } else if (mode === 'source' && sourceEditor) {
+    sourceEditor.setContent(content)
+  }
 
+  setFilePath(filePath)
+  setOriginalContent(content)
+  updateImageBasePath()
+  updateWordCount(content)
+}
+
+async function handleSave(): Promise<boolean> {
   const state = getState()
-  const content = editor.getContent()
+  const content = getCurrentContent()
 
   if (state.filePath) {
     const success = await window.electronAPI.saveFile(state.filePath, content)
@@ -609,15 +721,13 @@ async function handleSave(): Promise<boolean> {
 }
 
 async function handleSaveAs(): Promise<boolean> {
-  if (!editor) return false
-
-  const content = editor.getContent()
+  const content = getCurrentContent()
   const filePath = await window.electronAPI.saveFileAs(content)
 
   if (filePath) {
     setFilePath(filePath)
     setOriginalContent(content)
-    updatePreviewBasePath()
+    updateImageBasePath()
     return true
   }
   return false

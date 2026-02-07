@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-A minimal, distraction-free markdown editor for writers. Desktop application built with Electron and TypeScript. Focus is on clean writing experience, not code editing.
+A plain, fully-functional markdown editor. Desktop application built with Electron and TypeScript. Focused entirely on editing markdown documents — nothing more, nothing less.
 
 ## Tech Stack
 
@@ -14,10 +14,6 @@ A minimal, distraction-free markdown editor for writers. Desktop application bui
 - **Bundler**: Vite
 - **Package Manager**: npm
 - **Build/Packaging**: electron-builder
-
-Planned for next iteration:
-- **Markdown Parser**: markdown-it (for preview panel)
-- **Syntax Highlighting**: highlight.js (code blocks in preview)
 
 ## Build Commands
 
@@ -101,24 +97,6 @@ The `npm run dev` command:
 2. Starts Vite dev server for renderer (port 5173)
 3. Starts TypeScript watchers for main/preload
 4. Launches Electron in development mode
-
-## Current Development Goals
-
-**Next iteration: Preview Panel**
-
-1. Install markdown-it and highlight.js dependencies
-2. Create preview panel component with markdown rendering
-3. Update layout for split view (editor left, preview right)
-4. Add View menu with Toggle Preview (Ctrl+E)
-5. Implement preview visibility toggle with layout adjustment
-6. Add scroll sync (preview follows editor cursor)
-7. Style preview panel for rendered HTML
-
-**Implementation notes:**
-- Preview renders markdown as formatted HTML in real-time
-- Default state: split view (editor left, preview right)
-- Editor expands to full width when preview is hidden
-- Code blocks in preview should have syntax highlighting via highlight.js
 
 ## Key Specifications
 

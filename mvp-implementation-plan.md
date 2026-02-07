@@ -2,13 +2,11 @@
 
 ## Goal
 
-Create a minimal working markdown editor that can:
+Create a plain, fully-functional markdown editor that can:
 - Create new documents
 - Open existing `.md` files
 - Edit content
 - Save changes
-
-This is the foundation upon which all other features will be built.
 
 ---
 
